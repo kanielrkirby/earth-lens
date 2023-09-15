@@ -22,7 +22,7 @@ func main() {
 	r := chi.NewRouter()
 
 	r.Route("/api", func(r chi.Router) {
-		r.Route("/air", func(r chi.Router) {
+    r.Route("/air", func(r chi.Router) {
       OpenWeatherMap, err := NewAPISourceMiddleware(APIConfig{
 				URL:     "http://api.openweathermap.org/data/2.5/air_pollution?lat={{ .Lat }}&lon={{ .Lon }}&appid={{ .ApiKey }}",
 				Key: os.Getenv("OPEN_WEATHER_MAP_API_KEY"),
@@ -34,56 +34,41 @@ func main() {
 
 			r.Use(OpenWeatherMap)
 
-			r.Get("/", func(w http.ResponseWriter, r *http.Request) {
+      r.Get("/", func(w http.ResponseWriter, r *http.Request) {
 				apiSource := r.Context().Value("apiSource").(*APIConfig)
-        lat := r.URL.Query().Get("lat")
-        lon := r.URL.Query().Get("lon")
-        if lat == "" {
-          http.Error(w, "Latitude is required", http.StatusBadRequest)
-          return
-        }
-        if lon == "" {
-          http.Error(w, "Longitude is required", http.StatusBadRequest)
-          return
+        lat, lon, err := parseLatLon(r)
+        if err != nil {
+            http.Error(w, err.Error(), http.StatusBadRequest)
+            return
         }
 
-
-				tmpl, err := template.New("url").Parse(apiSource.URL)
-				if err != nil {
-					http.Error(w, "Error parsing URL template", http.StatusInternalServerError)
-					return
-				}
+        tmpl, err := template.New("url").Parse(apiSource.URL)
+        if err != nil {
+            http.Error(w, "Error parsing URL template", http.StatusInternalServerError)
+            return
+        }
         var buffer bytes.Buffer
         err = tmpl.Execute(&buffer, struct{
           Lat string
           Lon string
           ApiKey string
         }{
-          Lat: lat,
-          Lon: lon,
+          Lat: fmt.Sprintf("%f", lat),
+          Lon: fmt.Sprintf("%f", lon),
           ApiKey: apiSource.Key,
         })
         if err != nil {
-          http.Error(w, "Error executing URL template", http.StatusInternalServerError)
-          return
-        }
-        url := buffer.String()
-        resp, err := http.Get(url)
-        if err != nil {
-          http.Error(w, "Issue with the API request", http.StatusInternalServerError)
-          return
-        }
-        defer resp.Body.Close()
-
-        w.Header().Set("Content-Type", "application/json")
-        w.WriteHeader(resp.StatusCode)
-        _, err = io.Copy(w, resp.Body)
-        if err != nil {
-            http.Error(w, "Error streaming response", http.StatusInternalServerError)
+            http.Error(w, "Error executing URL template", http.StatusInternalServerError)
             return
         }
-			})
-		})
+        url := buffer.String()
+        err = apiRequest(url, w)
+        if err != nil {
+            http.Error(w, err.Error(), http.StatusInternalServerError)
+            return
+        }
+      })
+    })
 
     r.Route("/water", func(r chi.Router) {
       WaterServices, err := NewAPISourceMiddleware(APIConfig{
@@ -99,25 +84,9 @@ func main() {
 
       r.Get("/", func(w http.ResponseWriter, r *http.Request) {
         apiSource := r.Context().Value("apiSource").(*APIConfig)
-        latQuery := r.URL.Query().Get("lat")
-        lonQuery := r.URL.Query().Get("lon")
-        if latQuery == "" {
-          http.Error(w, "Latitude is required", http.StatusBadRequest)
-          return
-        }
-        if lonQuery == "" {
-          http.Error(w, "Longitude is required", http.StatusBadRequest)
-          return
-        }
-
-        lat, err := strconv.ParseFloat(latQuery, 64)
+        lat, lon, err := parseLatLon(r)
         if err != nil {
-          http.Error(w, "Latitude must be a float", http.StatusBadRequest)
-          return
-        }
-        lon, err := strconv.ParseFloat(lonQuery, 64)
-        if err != nil {
-          http.Error(w, "Longitude must be a float", http.StatusBadRequest)
+          http.Error(w, err.Error(), http.StatusBadRequest)
           return
         }
 
@@ -149,19 +118,10 @@ func main() {
           return
         }
         url := buffer.String()
-        fmt.Println(url)
-        resp, err := http.Get(url)
-        if err != nil {
-          http.Error(w, "Issue with the API request", http.StatusInternalServerError)
-          return
-        }
-        defer resp.Body.Close()
 
-        w.Header().Set("Content-Type", "application/json")
-        w.WriteHeader(resp.StatusCode)
-        _, err = io.Copy(w, resp.Body)
+        err = apiRequest(url, w)
         if err != nil {
-          http.Error(w, "Error streaming response", http.StatusInternalServerError)
+          http.Error(w, err.Error(), http.StatusInternalServerError)
           return
         }
       })
@@ -187,3 +147,37 @@ func NewAPISourceMiddleware(config APIConfig) (func(next http.Handler) http.Hand
 		})
 	}, nil
 }
+
+func parseLatLon(r *http.Request) (float64, float64, error) {
+    latQuery := r.URL.Query().Get("lat")
+    lonQuery := r.URL.Query().Get("lon")
+    if latQuery == "" || lonQuery == "" {
+        return 0, 0, errors.New("Latitude and Longitude are required")
+    }
+    lat, err := strconv.ParseFloat(latQuery, 64)
+    if err != nil {
+        return 0, 0, errors.New("Latitude must be a float")
+    }
+    lon, err := strconv.ParseFloat(lonQuery, 64)
+    if err != nil {
+        return 0, 0, errors.New("Longitude must be a float")
+    }
+    return lat, lon, nil
+}
+
+func apiRequest(url string, w http.ResponseWriter) error {
+    resp, err := http.Get(url)
+    if err != nil {
+        return errors.New("Issue with the API request")
+    }
+    defer resp.Body.Close()
+
+    w.Header().Set("Content-Type", "application/json")
+    w.WriteHeader(resp.StatusCode)
+    _, err = io.Copy(w, resp.Body)
+    if err != nil {
+        return errors.New("Error streaming response")
+    }
+    return nil
+}
+
