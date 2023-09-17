@@ -8,7 +8,7 @@ import (
   route "main/route"
 )
 
-func AirController(r chi.Router) {
+func Air(r chi.Router) {
 	OpenWeatherMap, err := NewAPISourceMiddleware(APIConfig{
 		URL: "https://api.openweathermap.org/data/2.5/air_pollution?lat={{ .Lat }}&lon={{ .Lon }}&appid={{ .Key }}",
 		Key: os.Getenv("OPEN_WEATHER_MAP_API_KEY"),

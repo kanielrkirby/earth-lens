@@ -8,7 +8,7 @@ import (
 	"os"
 )
 
-func WaterController(r chi.Router) {
+func Water(r chi.Router) {
 	WaterServices, err := NewAPISourceMiddleware(APIConfig{
 		URL: "https://waterservices.usgs.gov/nwis/iv/?format=json&bBox={{ .West }},{{ .South }},{{ .East }},{{ .North }}",
 		Key: os.Getenv("WATER_SERVICES_API_KEY"),

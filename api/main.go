@@ -17,8 +17,9 @@ func main() {
   r := chi.NewRouter()
 
 	r.Route("/api", func(r chi.Router) {
-		r.Route("/air", controller.AirController)
-		r.Route("/water", controller.WaterController)
+		r.Route("/air", controller.Air)
+		r.Route("/water", controller.Water)
+    //r.Route("/land", controller.LandUse)
 	})
 
 
