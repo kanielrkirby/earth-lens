@@ -10,8 +10,8 @@ import (
 
 func LandUse(r chi.Router) {
 	API, err := NewAPISourceMiddleware(APIConfig{
-		URL: "",
-		Key: os.Getenv(""),
+    URL: "https://api.nasa.gov/planetary/earth/imagery?lon={{ .Lon }}&lat={{ .Lat }}&dim=0.15&api_key={{ .Key }}",
+		Key: os.Getenv("NASA_API_KEY"),
 	})
 	if err != nil {
 		fmt.Println(fmt.Errorf("Error creating API middleware: %v", err))

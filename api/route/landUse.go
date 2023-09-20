@@ -19,7 +19,7 @@ func (c LandUseT) Get(w http.ResponseWriter, r *http.Request) {
     http.Error(w, err.Error(), http.StatusBadRequest)
     return
   }
-
+  
   tmpl, err := template.New("url").Parse(apiSource.URL)
   if err != nil {
     http.Error(w, "Error parsing URL template", http.StatusInternalServerError)
@@ -42,6 +42,7 @@ func (c LandUseT) Get(w http.ResponseWriter, r *http.Request) {
   }
   url := buffer.String()
 
+  println(url)
   err = ApiRequest(url, w)
   if err != nil {
     http.Error(w, err.Error(), http.StatusInternalServerError)
